@@ -15,5 +15,14 @@ class TestStringMethods(unittest.TestCase):
         password_instance = Password.create("password")
         self.assertEqual(password_instance.text, "password")
         self.assertEqual(password_instance.salt, "salt")
+    def test_encryption(self):
+        '''Tests the dy256 protocol'''
+        data = 'Cain kills Abel.' # 16 character string
+        key = 'OvDRX%<1[}s[y6E+' # generated at https://catonmat.net/tools/generate-random-ascii
+        encrypted_message = dy128.Encrypt(data, key)
+        self.assertNotEqual(encrypted_message, data)
+        decrypted_message = dy128.Decrypt(encrypted_message, key)
+        self.assertEqual(decrypted_message, data)
+    
 if __name__ == '__main__':
     unittest.main()

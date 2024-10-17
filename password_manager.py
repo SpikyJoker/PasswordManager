@@ -1,5 +1,5 @@
 import secrets
-import dy128
+from dy128 import cipher
 class PasswordHasher():# This class is a placeholder for the argon2-cffi library
     def __init__(self):
         pass
@@ -32,24 +32,6 @@ class Encryption(): #Custom encryption algo Dy256
     #repeat 15 times for each block
     #blocks are then combined and it is converted to hexadecimal
 
-class converter():
-    def __init__(self):
-        pass
-    @classmethod
-    def convertBits(cls, bits): #7bits required
-        '''Requires at least 7 bits to convert to single ascii character'''
-        if isinstance(bits, bytes):
-            bits = bits.decode('ascii')
-        characters = []
-        character_count = len(bits) // 7
-        for i in range(character_count):
-            ascii = int(bits[i*7:(i+1)*7], 2)
-            characters.append(chr(ascii))
-        return ''.join(characters)
-    @classmethod
-    def convertAscii(cls, ascii): #
-        for char in ascii:
-            bits = bin(ord(char))[2:]
 
 
 

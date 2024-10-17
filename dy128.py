@@ -116,81 +116,104 @@ class Key():
         self.key = key
         self.subkeys = self.GenerateSubkeys()
 
+        class cipher():
+            def __init__(self, direction:str, key:str, data:str) -> None:
+                self.direction = direction
+                self.key = key
+                self.subkeys = self.GenerateSubkeys()
+                match direction:
+                    case 'encrypt':
+                        self.Encrypt(data)
+                    case 'decrypt':
+                        self.Decrypt(data)
+                    case _:
+                        raise ValueError('Invalid direction')
+            
+            def Encrypt(self, data:str):
+                '''Encrypts data using the dy128 protocol'''
+                blocks = self.DataToBlocks(data) # turns data into its blocks
+                subkeys = self.KeyExpansion(self.key) # turns key into its subkeys
+
+                encrypted_blocks = []
+                for block in blocks:
+                    encrypted_block = self.EncryptRound(block, subkeys)
+                    encrypted_blocks.append(encrypted_block)
+
+                encrypted_data = self.BlockToData(encrypted_blocks)
+                return encrypted_data
+            
+            def Decrypt(self, data:str):
+                '''Decrypts data using the dy128 protocol'''
+                pass
+
+            @staticmethod
+            def ShiftCharacter(character:str, subkey):
+                '''Shifts a single character using a subkey'''
+                subkey = bytes(subkey)
+                character = bytes(ord(character))
+
+                for offset in subkey:
+                    character = character ^ offset
+                return character
+            
+            @staticmethod
+            def ShiftCharacter(character:str, subkeys:list):
+                shifted_character = character
+                for subkey in subkeys:
+                    shifted_character = chr(ord(shifted_character) ^ ord(subkey))
+                return shifted_character
+
+            @staticmethod
+            def DataToBlocks(data:str):
+                '''Converts the data into blocks of 16 characters'''
+                blocks = []
+                for i in range(0, len(data), 16):
+                    block = data[i:i+16]
+                    blocks.append(block)
+                return blocks
+
+            @staticmethod
+            def BlockToData(blocks:list):
+                '''Converts the blocks into data'''
+                data = ''.join(blocks)
+                return data
+
+            @staticmethod
+            def KeyExpansion(key:str):
+                '''Generates subkeys from the master key'''
+                subkeys = []
+                for i in range(len(key)//4):
+                    subkey = key[:i]
+                    subkeys.append(subkey)
+                return subkeys
+
+            @staticmethod
+            def EncryptRound(block:list, subkey):
+                '''Encrypts a block of ASCII characters using subkeys'''
+                encrypted_block = list()
+                for character in block:
+                    encrypted_character = cipher.ShiftCharacter(character, subkey)
+                    encrypted_block.append(encrypted_character)
+                
+                diffused = Diffusion(encrypted_block)
+                return diffused.block
 
 
-def ShiftCharacter(character:str, subkey):
-    '''Shifts a single character using a subkey'''
-    subkey = bytes(subkey)
-    character = bytes(ord(character))
-
-    for offset in subkey:
-        character = character ^ offset
-
-def SubstituteBytes(character:str, key):
-
-
-    pass
-
-def Encrypt(data:str, key:str):
-    '''Encrypts data using the Encrypto protocol'''
-    blocks = DataToBlocks(data) # turns data into its blocks
-    subkeys = KeyExpansion(key) # turns key into its subkeys
-
-    encrypted_blocks = []
-    for block in blocks:
-        encrypted_block = EncryptRound(block, subkeys)
-        encrypted_blocks.append(encrypted_block)
-
-    encrypted_data = BlockToData(encrypted_blocks)
-    return encrypted_data
-
-
-
-def DataToBlocks(data:str):
-    '''Converts the data into blocks of 16 characters'''
-    blocks = []
-    for i in range(0, len(data), 16):
-        block = data[i:i+16]
-        blocks.append(block)
-    return blocks
-
-def BlockToData(blocks:list):
-    '''Converts the blocks into data'''
-    data = ''.join(blocks)
-    return data
-
-def KeyExpansion(key:str):
-    '''Generates subkeys from the master key'''
-    subkeys = []
-    for i in range(len(key)//4):
-        subkey = key[:i]
-        subkeys.append(subkey)
-    return subkeys
-
-def EncryptRound(block:list, subkey):
-    '''Encrypts a block of ASCII characters using subkeys'''
-    encrypted_block = list()
-    for character in block:
-        encrypted_character = ShiftCharacter(character, subkey)
-        encrypted_block.append(encrypted_character)
-    
-    diffused = Diffusion(encrypted_block)
-    return diffused.block
-
-
-
-def ShiftCharacter(character:str, subkeys:list):
-    '''Shifts a single character using subkeys'''
-    shifted_character = character
-    for subkey in subkeys:
-        shifted_character = chr(ord(shifted_character) ^ ord(subkey))
-    return shifted_character
-
-
-
-
-
-
-
-
-
+class converter():
+    def __init__(self):
+        pass
+    @classmethod
+    def convertBits(cls, bits): #7bits required
+        '''Requires at least 7 bits to convert to single ascii character'''
+        if isinstance(bits, bytes):
+            bits = bits.decode('ascii')
+        characters = []
+        character_count = len(bits) // 7
+        for i in range(character_count):
+            ascii = int(bits[i*7:(i+1)*7], 2)
+            characters.append(chr(ascii))
+        return ''.join(characters)
+    @classmethod
+    def convertAscii(cls, ascii): #
+        for char in ascii:
+            bits = bin(ord(char))[2:]
