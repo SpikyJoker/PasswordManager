@@ -23,14 +23,7 @@ class Password():
 
     def hash(self):
         self. PasswordHasher.hash(self.text + self.salt)
-class Encryption(): #Custom encryption algo Dy256
-    def __init__(self):
-        pass
 
-    #Break down into blocks
-    #blocks are encrypted then diffusion and substitution complicates. 
-    #repeat 15 times for each block
-    #blocks are then combined and it is converted to hexadecimal
 
 
 
