@@ -1,9 +1,12 @@
+import random
+
 #Word is a 4-byte word, and the key is made of 16 bytes/128bits
 #The key is expanded into 11 keys of 16 bytes each
 ascii_start = 32 #exclusive
 ascii_end = 126 #inclusive
 freeconfig = { # all values held within can be changed completely freely
     'row_matrix': [3,1,0,2], # the matrix used for the ShiftRows step
+    'inverse_row_matrix': [-3,-1,0,-2], # goes backwards by the same offsets as the normal row matrix
     's_box': (
             0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
             0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0,
@@ -44,21 +47,22 @@ freeconfig = { # all values held within can be changed completely freely
         [0x01, 0x02, 0x03, 0x01],
         [0x01, 0x01, 0x02, 0x03],
         [0x03, 0x01, 0x01, 0x02]], # the matrix used for the MixColumns step
-
+    'inverse_galois_field':      [   [0x0E, 0x0B, 0x0D, 0x09],
+        [0x09, 0x0E, 0x0B, 0x0D],
+        [0x0D, 0x09, 0x0E, 0x0B],
+        [0x0B, 0x0D, 0x09, 0x0E]],
+    'rcon': [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36] # the round constant used in the key expansion
 
     
 } 
 
 
-def xor(a, b):
-    '''XORs two values'''
-    return a ^ b
-
-
+# Removed redundant xor function
+'''
 class Diffusion():
-    '''Spreads out characters within a block, such that a single byte change,\n
+    Spreads out characters within a block, such that a single byte change,\n
     in the initial key or block, will affect more characters in the block:\n
-    it will diffuse across bytes and into the entire block'''
+    it will diffuse across bytes and into the entire block
 
     def __init__(self, block:str):
         self.block = block
@@ -68,72 +72,75 @@ class Diffusion():
     
     
     def MixColumn(self):
-        '''Takes the column, applies the fixed matrix for free config, and multiplies it by the matrix 
+        Takes the column, applies the fixed matrix for free config, and multiplies it by the matrix 
         There are only a finite number of possible values therefore finite field arithmetics are applied
 
         example: (MixColumns.png)
         
-        '''
+        
         # block = self.block
         # for i in range(4):
         #     column = block[i::4]
         pass #to be implemented
-    
-    def ShiftRows(self):
-        '''Shifts the rows of characters in a block'''
-        matrix = freeconfig['matrix'] # shift the first row by 0, the second by 1, the third by 3, and the fourth by 2. This can be anything
-        block = self.block
-        for shift in matrix:
-            block = block[shift:] + block[:shift]
-        self.block = block
-    
-    galois_field = freeconfig['galois_field'] #This matrix is absolutely wild and uses some pretty deep maths, that i don't yet fully understand. Luckily, it's already been implemented in the MixColumn function, and it can be freely changed. https://www.youtube.com/watch?v=qGOoDZ100qY
-    @staticmethod
-    def galois_mult(a, b):
-        '''Multiplies two values using the Galois matrix'''
-        p = 0
-        for _ in range(8):
-            if b & 1:
-                p ^= a
-            a <<= 1 #equivalent to doubling a value
-            if a & 0x100: #the fixed field#https://realpython.com/cdn-cgi/image/width=500,format=auto/https://files.realpython.com/media/and.ef7704d02d6f.gif
-                a ^= 0x11b #irredubile polynomial (x^8 + x^4 + x^3 + x + 1)
-            b >>= 1 #divides b by two
-        return p
-        # or operator looks like | and does this https://realpython.com/cdn-cgi/image/width=500,format=auto/https://files.realpython.com/media/or.7f09664e2d15.gif
-        # xor operator looks like ^ and has been used to implement the galois multiplication
-        # the << operator shifts the bits to the left, and the >> operator shifts the bits to the right
-        # the = within the bitwise operators is an assignment operator, and the ^= is a compound assignment operator, like +=
-        # 0x100 is 256 in hexadecimal, it represents the fixed field, the maximum value
-        # 0x11b is the irreducible polynomial, it is used to reduce the value of a, if it exceeds the fixed field
-        #0x represents a hexadecimal number, and Bx represents a binary number
-
-def xor(a, b):
-    '''XORs two values'''
-    return a ^ b
-
+'''
 class Diffusion:
     '''Spreads out characters within a block, so a single byte change 
     in the initial key or block will affect more characters across the block.'''
-
-    def __init__(self, block: str):
+    galois_field = freeconfig['galois_field']
+    def __init__(self, block: str, direction:str = 'decrypt'):
+        assert direction in ['encrypt', 'decrypt'], 'Direction must be either "encrypt" or "decrypt"'
+        self.direction == direction
         self.block = block
-        self.shift_rows()
-        self.mix_column()
+        self.shift_rows()#mix_columns is not done in this, as it is not done in the last round
+        
     
-    def mix_column(self):
-        '''Placeholder for MixColumn logic, which applies fixed matrix and finite field arithmetic.'''
-        pass  # to be implemented
+    def mix_columns(self):
+        '''MixColumns step in AES-like diffusion using Galois Field arithmetic.'''
+        if self.direction == 'encrypt':
+            galois_field = freeconfig['galois_field']
+        elif self.direction == 'decrypt':
+            galois_field = freeconfig['inverse_galois_field']
+        else:
+            raise ValueError('Direction must be either "encrypt" or "decrypt"')
+        # Assuming self.block is a list of 16 bytes organized in a 4x4 matrix (column-major order)
+        block = [int(byte) for byte in self.block]  # Ensure values are integers
+        
+
+        # Iterate through each column in the 4x4 matrix
+        for col in range(4):
+            # Select column bytes
+            b0 = block[col]
+            b1 = block[4 + col]
+            b2 = block[8 + col]
+            b3 = block[12 + col]
+            
+            # Now, use the values from the galois_field for multiplication
+            block[col]      = self.galois_mult(b0, galois_field[0][0]) ^ self.galois_mult(b1, galois_field[0][1]) ^ self.galois_mult(b2, galois_field[0][2]) ^ self.galois_mult(b3, galois_field[0][3])
+            block[4 + col]  = self.galois_mult(b0, galois_field[1][0]) ^ self.galois_mult(b1, galois_field[1][1]) ^ self.galois_mult(b2, galois_field[1][2]) ^ self.galois_mult(b3, galois_field[1][3])
+            block[8 + col]  = self.galois_mult(b0, galois_field[2][0]) ^ self.galois_mult(b1, galois_field[2][1]) ^ self.galois_mult(b2, galois_field[2][2]) ^ self.galois_mult(b3, galois_field[2][3])
+            block[12 + col] = self.galois_mult(b0, galois_field[3][0]) ^ self.galois_mult(b1, galois_field[3][1]) ^ self.galois_mult(b2, galois_field[3][2]) ^ self.galois_mult(b3, galois_field[3][3])
+
+        self.block = ''.join(chr(b) for b in block)  # Convert back to string format
+
+
+
     
     def shift_rows(self):
         '''Shifts the rows of characters in a block according to a configuration matrix.'''
-        matrix = freeconfig['matrix']
-        block = self.block
-        for shift in matrix:
-            block = block[shift:] + block[:shift]
+        if self.direction == 'encrypt':
+            row_matrix = freeconfig['row_matrix']
+        else:
+            row_matrix = freeconfig['inverse_row_matrix']
+        block = []
+        for i in len(self.block)//4:
+            shift = row_matrix[i]
+            row = self.block[i*4:i*4+4]
+            row = row[shift:] + row[:shift]
+            for val in row:
+                block.append(val)
         self.block = block
     
-    galois_field = freeconfig['galois_field']
+    
     
     @staticmethod
     def galois_mult(a, b):
@@ -149,23 +156,59 @@ class Diffusion:
         return p
 
 class Key:
+    
+
+    
+    def key_expansion(self):
+        '''Generates subkeys for encryption/decryption rounds'''
+        key = self.key 
+        self.roundkeys = []
+        self.roundkeys.append(key)
+        for i in range(10):
+            self.roundkeys.append(SubKey(i, self.roundkeys[-1].subkey).subkey)
+
+            
+
+
+
+        #initial roound
+        #in the first round the round key is the encryption key that was input, split into a 4x4 matrix
+        #afterwards
+class SubKey(Key):
+    def __init__(self, round, previous_subkey:object = None ):
+        self.previous_word = previous_subkey.subkey[3]
+        self.generate_words()
+        self.round_const = freeconfig['rcon'][round] 
+        self.subkey = [word for word in self.words]
+
+    def generate_words(self):
+        rot_word = self.rotate_word(self.previous_word)
+        sub_bytes = self.sub_bytes(rot_word)
+        rcon = self.rcon()
+        self.words = [self.previous_word[i] ^ sub_bytes[i] ^ rcon[i] for i in range(4)]
+    def rotate_word(self, word):
+        return word[1:] + word[:1]
+    def sub_bytes(self, word):
+        return [freeconfig['s_box'][byte] for byte in word]
+    def rcon(self):
+        return [word ^ self.round_const ^ 0 ^ 0 for word in self.words]
+
+class MasterKey(Key):
     def __init__(self, key=None):
         self.key = key if key else self.generate_key()
-        self.subkeys = self.generate_subkeys()
-    
-    def generate_key(self):
+        self.key_expansion()
+
+    @staticmethod
+    def generate_key() -> str:
         '''Generates a default key (if none is provided)'''
-        # Implementation needed
-        pass
-    
-    def generate_subkeys(self):
-        '''Generates subkeys for encryption/decryption rounds'''
-        # Implementation needed
-        pass
+        # Random 128 bit key
+        key = ''.join(chr(random.randint(ascii_start, ascii_end)) for _ in range(16))
+        print(f'Generated key: {key}')
+        return key
 
 class Cipher:
     def __init__(self, key: str, data: str) -> None:
-        self.key = key
+        self.key = Key(key)
         self.data = data
         self.subkeys = self.key_expansion()
 
@@ -173,15 +216,36 @@ class Cipher:
         '''Encrypts data using the dy128 protocol'''
         blocks = self.data_to_blocks(self.data)
         encrypted_blocks = [self.encrypt_round(block) for block in blocks]
-        self.data = self.block_to_data(encrypted_blocks)
-        return self.data
+        return self.block_to_data(encrypted_blocks)
     
     def decrypt(self):
         '''Decrypts data using the dy128 protocol'''
         blocks = self.data_to_blocks(self.data)
         decrypted_blocks = [self.decrypt_round(block) for block in blocks]
-        self.data = self.block_to_data(decrypted_blocks)
-        return self.data
+        return self.block_to_data(decrypted_blocks)
+
+    
+
+    def encrypt_round(self, block: list):
+        '''Encrypts a block of ASCII characters using subkeys'''
+        encrypted_block = [self.shift_character(char, self.key.subkeys) for char in block]
+
+        diffused = Diffusion(encrypted_block, direction='encrypt')
+        diffused = diffused.mix_columns()
+        return diffused.block
+
+    def decrypt_round(self, block: list):
+        '''Decrypts a block of ASCII characters using subkeys'''
+        decrypted_block = [self.shift_character(char, self.key.subkeys) for char in block]
+        diffused = Diffusion(decrypted_block, direction='decrypt')
+        diffused = diffused.mix_columns()
+        return diffused.block
+
+
+    def sub_bytes(self, block: list, s_box: list):# s_box determines encryption vs decryption
+        '''Substitutes bytes in a block using an S-Box'''
+        return [s_box[ord(char)] for char in block]
+
 
     @staticmethod
     def shift_character(character: str, subkeys: list):
@@ -189,6 +253,8 @@ class Cipher:
         for subkey in subkeys:
             shifted_character = chr(ord(shifted_character) ^ ord(subkey))
         return shifted_character
+
+    
 
     @staticmethod
     def data_to_blocks(data: str):
@@ -200,24 +266,6 @@ class Cipher:
         '''Converts the blocks back into a single data string'''
         return ''.join(blocks)
 
-    def key_expansion(self):
-        '''Generates subkeys from the master key'''
-        subkeys = []
-        for i in range(len(self.key) // 4):
-            subkeys.append(self.key[:i])
-        return subkeys
-
-    def encrypt_round(self, block: list):
-        '''Encrypts a block of ASCII characters using subkeys'''
-        encrypted_block = [self.shift_character(char, self.subkeys) for char in block]
-        diffused = Diffusion(encrypted_block)
-        return diffused.block
-
-    def decrypt_round(self, block: list):
-        '''Decrypts a block of ASCII characters using subkeys'''
-        decrypted_block = [self.shift_character(char, self.subkeys) for char in block]
-        diffused = Diffusion(decrypted_block)
-        return diffused.block
 
 class Converter:
     @classmethod
